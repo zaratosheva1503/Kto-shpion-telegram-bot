@@ -585,6 +585,29 @@ function requireAdminRequest(req, res, url, body = {}) {
   return admin;
 }
 
+// === Anti-cheat helpers ===
+// Returns the verified Telegram user id from the signed init data header, or
+// null when there is no valid signature. A client cannot forge this value
+// because the signature is an HMAC computed over BOT_TOKEN.
+function getVerifiedPlayerId(req) {
+  const rawInitData = Array.isArray(req.headers["x-telegram-init-data"])
+    ? req.headers["x-telegram-init-data"][0]
+    : req.headers["x-telegram-init-data"];
+  if (!rawInitData) return null;
+  const verified = validateTelegramInitData(rawInitData);
+  return verified.ok ? Number(verified.user.id) : null;
+}
+
+// Resolves the id of the player performing an action. When a valid Telegram
+// signature is present we ALWAYS trust it over the client-supplied id, so a
+// player cannot act on behalf of someone else (e.g. fake being the host or
+// vote as another player). Falls back to the provided id for local/browser
+// play where there is no Telegram signature.
+function resolveActingId(req, fallbackId) {
+  const verified = getVerifiedPlayerId(req);
+  return verified != null ? verified : Number(fallbackId);
+}
+
 function adminPanelKeyboard(botUsername) {
   return Markup.inlineKeyboard([
     [
@@ -1124,7 +1147,7 @@ function setupBot() {
     const room = requireRoom(ctx.match[1]);
     await safeAnswer(ctx);
     const telegramLink = botState.username
-      ? `https://t.me/${botState.username}?start=${room.code}`
+      ? `{{https://t.me/${botState.username}}}?start=${room.code}`
       : "";
     await ctx.reply(
       `Приглашение в игру:\n${getRoomLink(room.code, botState.username, true)}${telegramLink ? `\n${telegramLink}` : ""}\n\nИли код: ${room.code}`,
@@ -1748,6 +1771,7 @@ function grantCosmeticPurchase(playerId, kind, itemId, stars, paymentId) {
 function createServer(bot) {
   const publicDir = __dirname;
   return http.createServer(async (req, res) => {
+    try {
     applyCorsHeaders(req, res);
     if (req.method === "OPTIONS") {
       res.writeHead(204).end();
@@ -1932,7 +1956,7 @@ function createServer(bot) {
         return;
       }
       const body = await readBody(req);
-      const requesterId = Number(body.requesterId);
+      const requesterId = resolveActingId(req, body.requesterId);
       const targetId = Number(body.targetId);
       if (room.ownerId !== requesterId) {
         sendJson(res, { error: "Только хост может кикать" }, 403);
@@ -1970,7 +1994,7 @@ function createServer(bot) {
         return;
       }
       const body = await readBody(req);
-      const requesterId = Number(body.requesterId);
+      const requesterId = resolveActingId(req, body.requesterId);
       const targetId = Number(body.targetId);
       if (room.ownerId !== requesterId) {
         sendJson(res, { error: "Только хост может передать права" }, 403);
@@ -1995,7 +2019,7 @@ function createServer(bot) {
         return;
       }
       const body = await readBody(req);
-      const playerId = Number(body.playerId);
+      const playerId = resolveActingId(req, body.playerId);
       room.players = room.players.filter((id) => id !== playerId);
       matchAssignments.delete(playerId);
       if (room.ownerId === playerId && room.players.length > 0) {
@@ -2022,7 +2046,7 @@ function createServer(bot) {
         return;
       }
       const body = await readBody(req);
-      const requesterId = Number(body.requesterId);
+      const requesterId = resolveActingId(req, body.requesterId);
       if (room.ownerId !== requesterId) {
         sendJson(res, { error: "Только хост может начать игру" }, 403);
         return;
@@ -2052,7 +2076,7 @@ function createServer(bot) {
         return;
       }
       const body = await readBody(req);
-      const requesterId = Number(body.requesterId);
+      const requesterId = resolveActingId(req, body.requesterId);
       if (room.ownerId !== requesterId) {
         sendJson(res, { error: "Только хост может менять паки" }, 403);
         return;
@@ -2181,7 +2205,7 @@ function createServer(bot) {
         return;
       }
       const body = await readBody(req);
-      const voterId = Number(body.voterId);
+      const voterId = resolveActingId(req, body.voterId);
       const targetId = Number(body.targetId);
       const vote = body.vote === false ? false : true;
       if (!room.players.includes(voterId) || !room.players.includes(targetId)) {
@@ -2264,7 +2288,31 @@ function createServer(bot) {
         sendJson(res, { error: "Комната не найдена" }, 404);
         return;
       }
-      const playerId = Number(url.searchParams.get("playerId"));
+      // Anti-cheat: a player must never be able to read someone else's role.
+      // When a valid Telegram signature is present we IGNORE the query param
+      // and only ever return the caller's own role. This blocks peeking at
+      // the spy/card by passing another player's id in devtools.
+      const verifiedId = getVerifiedPlayerId(req);
+      const requestedId = Number(url.searchParams.get("playerId"));
+      let playerId;
+      if (verifiedId != null) {
+        playerId = verifiedId;
+      } else if (BOT_TOKEN && process.env.STRICT_ROLE_AUTH === "1") {
+        // Optional strict mode: refuse unsigned role requests in production.
+        sendJson(
+          res,
+          { error: "Нужна авторизация Telegram, открой игру через бота" },
+          401,
+        );
+        return;
+      } else {
+        // Local dev / browser preview without a Telegram signature.
+        playerId = requestedId;
+      }
+      if (!room.players.includes(playerId)) {
+        sendJson(res, { error: "Ты не участник этой комнаты" }, 403);
+        return;
+      }
       const role = getPlayerRole(room, playerId);
       sendJson(res, { role, room: getApiRoom(code) });
       return;
@@ -2306,7 +2354,7 @@ function createServer(bot) {
         return;
       }
       const body = await readBody(req);
-      const voterId = Number(body.voterId);
+      const voterId = resolveActingId(req, body.voterId);
       const targetId = Number(body.targetId);
       room.votes.set(voterId, targetId);
       if (room.votes.size >= room.players.length) {
@@ -2328,7 +2376,7 @@ function createServer(bot) {
         return;
       }
       const body = await readBody(req);
-      const playerId = Number(body.playerId);
+      const playerId = resolveActingId(req, body.playerId);
       const guess = String(body.guess || "").trim();
       if (playerId !== room.spyId) {
         sendJson(res, { error: "Только шпион может угадывать" }, 403);
@@ -2340,7 +2388,7 @@ function createServer(bot) {
           (room.card.nameEn && fuzzyMatch(guess, room.card.nameEn)));
       const result = {
         text: correct
-          ? `Шпион угадал карту "${room.card.name}"! Шпион победил!`
+          ? `Шпион угадал карту \"${room.card.name}\"! Шпион победил!`
           : `Шпион ошибся! Карта была: ${room.card.name}`,
         card: room.card.name,
         spy: getPlayerName(room.spyId),
@@ -2362,7 +2410,8 @@ function createServer(bot) {
         return;
       }
       const body = await readBody(req);
-      if (room.ownerId !== Number(body.requesterId)) {
+      const requesterId = resolveActingId(req, body.requesterId);
+      if (room.ownerId !== requesterId) {
         sendJson(res, { error: "Только хост" }, 403);
         return;
       }
@@ -2452,800 +2501,4 @@ function createServer(bot) {
     if (url.pathname === "/api/me/game-result" && req.method === "POST") {
       const body = await readBody(req);
       const playerId = Number(body.playerId);
-      if (!playerId) {
-        sendJson(res, { error: "playerId required" }, 400);
-        return;
-      }
-      const out = storage.applyGameResult(playerId, {
-        wasSpy: Boolean(body.wasSpy),
-        won: Boolean(body.won),
-      });
-      // Notify via WS (so level-up popup can render in real time even
-      // for late updates).
-      notifyUser(playerId, {
-        type: "me:update",
-        user: storage.publicProfile(out.user),
-        full: serializeFullUser(out.user),
-        leveledUp: out.leveledUp,
-        fromLevel: out.fromLevel,
-        toLevel: out.toLevel,
-      });
-      sendJson(res, {
-        user: storage.publicProfile(out.user),
-        full: serializeFullUser(out.user),
-        leveledUp: out.leveledUp,
-        fromLevel: out.fromLevel,
-        toLevel: out.toLevel,
-      });
-      return;
-    }
-    if (url.pathname.match(/^\/api\/users\/(\d+)$/) && req.method === "GET") {
-      const id = Number(url.pathname.split("/")[3]);
-      const u = storage.getUser(id);
-      if (!u) {
-        sendJson(res, { error: "Пользователь не найден" }, 404);
-        return;
-      }
-      sendJson(res, {
-        user: storage.publicProfile(u),
-        online: isPlayerOnline(id),
-      });
-      return;
-    }
-    if (url.pathname === "/api/users/search" && req.method === "POST") {
-      const body = await readBody(req);
-      const list = storage
-        .searchUsers(body.query || "", 30)
-        .map((p) => ({ ...p, online: isPlayerOnline(p.id) }));
-      sendJson(res, { users: list });
-      return;
-    }
-
-    // ==================== FRIENDS ====================
-    if (url.pathname === "/api/friends" && req.method === "GET") {
-      const playerId = Number(url.searchParams.get("playerId"));
-      if (!playerId) {
-        sendJson(res, { error: "playerId required" }, 400);
-        return;
-      }
-      const u = storage.getOrCreateUser(playerId);
-      const friends = (u.friends || [])
-        .map((fid) => {
-          const f = storage.getUser(fid);
-          return f
-            ? {
-                ...storage.publicProfile(f),
-                online: isPlayerOnline(fid),
-                currentRoom: findCurrentRoomCode(fid),
-              }
-            : null;
-        })
-        .filter(Boolean);
-      const incoming = (u.friendRequestsIn || [])
-        .map((fid) => {
-          const f = storage.getUser(fid);
-          return f
-            ? { ...storage.publicProfile(f), online: isPlayerOnline(fid) }
-            : null;
-        })
-        .filter(Boolean);
-      const outgoing = (u.friendRequestsOut || [])
-        .map((fid) => {
-          const f = storage.getUser(fid);
-          return f
-            ? { ...storage.publicProfile(f), online: isPlayerOnline(fid) }
-            : null;
-        })
-        .filter(Boolean);
-      sendJson(res, { friends, incoming, outgoing });
-      return;
-    }
-    if (url.pathname === "/api/friends/request" && req.method === "POST") {
-      const body = await readBody(req);
-      const fromId = Number(body.playerId);
-      const toId = Number(body.targetId);
-      if (!fromId || !toId) {
-        sendJson(res, { error: "playerId/targetId required" }, 400);
-        return;
-      }
-      try {
-        storage.sendFriendRequest(fromId, toId);
-        const from = storage.getUser(fromId);
-        notifyUser(toId, {
-          type: "friend:request",
-          from: storage.publicProfile(from),
-        });
-        sendJson(res, { ok: true });
-      } catch (e) {
-        sendJson(res, { error: e.message }, 400);
-      }
-      return;
-    }
-    if (url.pathname === "/api/friends/accept" && req.method === "POST") {
-      const body = await readBody(req);
-      const playerId = Number(body.playerId);
-      const fromId = Number(body.fromId);
-      try {
-        storage.acceptFriendRequest(playerId, fromId);
-        const u = storage.getUser(playerId);
-        const f = storage.getUser(fromId);
-        notifyUser(fromId, {
-          type: "friend:accepted",
-          friend: storage.publicProfile(u),
-        });
-        notifyUser(playerId, {
-          type: "friend:accepted",
-          friend: storage.publicProfile(f),
-        });
-        sendJson(res, { ok: true });
-      } catch (e) {
-        sendJson(res, { error: e.message }, 400);
-      }
-      return;
-    }
-    if (url.pathname === "/api/friends/decline" && req.method === "POST") {
-      const body = await readBody(req);
-      try {
-        storage.declineFriendRequest(
-          Number(body.playerId),
-          Number(body.fromId),
-        );
-        sendJson(res, { ok: true });
-      } catch (e) {
-        sendJson(res, { error: e.message }, 400);
-      }
-      return;
-    }
-    if (url.pathname === "/api/friends/remove" && req.method === "POST") {
-      const body = await readBody(req);
-      try {
-        storage.removeFriend(Number(body.playerId), Number(body.targetId));
-        sendJson(res, { ok: true });
-      } catch (e) {
-        sendJson(res, { error: e.message }, 400);
-      }
-      return;
-    }
-    if (url.pathname === "/api/friends/invite" && req.method === "POST") {
-      const body = await readBody(req);
-      const fromId = Number(body.playerId);
-      const toId = Number(body.targetId);
-      const code = String(body.code || "").toUpperCase();
-      if (!fromId || !toId || !code) {
-        sendJson(res, { error: "playerId/targetId/code required" }, 400);
-        return;
-      }
-      const from = storage.getUser(fromId);
-      if (!from) {
-        sendJson(res, { error: "Не найден пользователь" }, 404);
-        return;
-      }
-      const ok = notifyUser(toId, {
-        type: "room:invite",
-        from: storage.publicProfile(from),
-        code,
-        link: `${PUBLIC_URL}/?join=${encodeURIComponent(code)}`,
-      });
-      storage.trackEvent("room_invite_sent", {
-        fromId,
-        toId,
-        code,
-        delivered: ok,
-      });
-      sendJson(res, { delivered: ok });
-      return;
-    }
-
-    // ==================== COSMETICS SHOP ====================
-    if (url.pathname === "/api/shop/catalog" && req.method === "GET") {
-      sendJson(res, { catalog: cosmetics.ALL });
-      return;
-    }
-    if (url.pathname === "/api/shop/equip" && req.method === "POST") {
-      const body = await readBody(req);
-      const playerId = Number(body.playerId);
-      const kind = String(body.kind || "");
-      const itemId = body.itemId;
-      try {
-        const u = storage.equipItem(playerId, kind, itemId);
-        notifyUser(playerId, {
-          type: "me:update",
-          user: storage.publicProfile(u),
-          full: serializeFullUser(u),
-        });
-        sendJson(res, {
-          user: storage.publicProfile(u),
-          full: serializeFullUser(u),
-        });
-      } catch (e) {
-        sendJson(res, { error: e.message }, 400);
-      }
-      return;
-    }
-    if (url.pathname === "/api/shop/purchase-link" && req.method === "POST") {
-      // Create a Telegram Stars invoice for a specific cosmetic item.
-      const body = await readBody(req);
-      const playerId = Number(body.playerId);
-      const kind = String(body.kind || "");
-      const itemId = body.itemId;
-      const item = cosmetics.findItem(kind, itemId);
-      if (!item || !item.starsPrice) {
-        sendJson(res, { error: "Предмет недоступен для покупки" }, 400);
-        return;
-      }
-      try {
-        const link = await createStarsInvoice({
-          title: `${item.title} (${kind})`,
-          description: `Покупка предмета "${item.title}"`,
-          payload: JSON.stringify({
-            kind: "cosmetic",
-            cosmeticKind: kind,
-            itemId,
-            playerId,
-            stars: item.starsPrice,
-          }),
-          stars: item.starsPrice,
-        });
-        sendJson(res, { link, stars: item.starsPrice, item });
-      } catch (e) {
-        sendJson(res, { error: e.message }, 500);
-      }
-      return;
-    }
-
-    // ==================== "НА ПОКУШАТЬ" (DONATIONS) ====================
-    if (url.pathname === "/api/donate/create-link" && req.method === "POST") {
-      const body = await readBody(req);
-      const playerId = Number(body.playerId);
-      const stars = Math.max(
-        1,
-        Math.min(100000, Math.floor(Number(body.stars))),
-      );
-      if (!playerId || !stars) {
-        sendJson(res, { error: "playerId / stars required" }, 400);
-        return;
-      }
-      const title = body.title || `На покушать (${stars} ⭐)`;
-      const description =
-        body.description ||
-        "Поддержать разработчика — даёт премиум и косметику.";
-      try {
-        const link = await createStarsInvoice({
-          title,
-          description,
-          payload: JSON.stringify({ kind: "donation", playerId, stars }),
-          stars,
-        });
-        storage.trackEvent("donate_link_created", { playerId, stars });
-        sendJson(res, { link, stars });
-      } catch (e) {
-        sendJson(res, { error: e.message || "Не удалось создать инвойс" }, 500);
-      }
-      return;
-    }
-    if (url.pathname === "/api/donate/test-grant" && req.method === "POST") {
-      // Local-dev fallback: if bot token is not configured, lets the client
-      // simulate a successful donation. Behind a feature flag.
-      if (process.env.NODE_ENV === "production") {
-        sendJson(res, { error: "Недоступно в проде" }, 403);
-        return;
-      }
-      const body = await readBody(req);
-      const playerId = Number(body.playerId);
-      const stars = Math.max(1, Math.floor(Number(body.stars || 0)));
-      if (!playerId || !stars) {
-        sendJson(res, { error: "playerId / stars required" }, 400);
-        return;
-      }
-      grantDonationRewards(playerId, stars, "manual-test");
-      const u = storage.getUser(playerId);
-      sendJson(res, {
-        user: storage.publicProfile(u),
-        full: serializeFullUser(u),
-      });
-      return;
-    }
-
-    // ==================== ADMIN MINI APP ====================
-    if (url.pathname === "/api/admin/me" && req.method === "GET") {
-      const admin = requireAdminRequest(req, res, url);
-      if (!admin) return;
-      sendJson(res, {
-        isAdmin: true,
-        adminId: admin.id,
-        via: admin.via,
-        summary: buildAdminSummary(),
-      });
-      return;
-    }
-    if (url.pathname === "/api/admin/summary" && req.method === "GET") {
-      const admin = requireAdminRequest(req, res, url);
-      if (!admin) return;
-      sendJson(res, buildAdminSummary());
-      return;
-    }
-    if (url.pathname === "/api/admin/catalog" && req.method === "GET") {
-      const admin = requireAdminRequest(req, res, url);
-      if (!admin) return;
-      sendJson(res, { kinds: ADMIN_COSMETIC_KINDS, catalog: cosmetics.ALL });
-      return;
-    }
-    if (url.pathname === "/api/admin/users" && req.method === "GET") {
-      const admin = requireAdminRequest(req, res, url);
-      if (!admin) return;
-      const query = url.searchParams.get("query") || "";
-      const limit = Number(url.searchParams.get("limit") || 30);
-      sendJson(res, { users: searchAdminUsers(query, limit) });
-      return;
-    }
-    if (
-      url.pathname.match(/^\/api\/admin\/users\/(\d+)$/) &&
-      req.method === "GET"
-    ) {
-      const admin = requireAdminRequest(req, res, url);
-      if (!admin) return;
-      const id = Number(url.pathname.split("/")[4]);
-      const u = storage.getUser(id);
-      if (!u) {
-        sendJson(res, { error: "Пользователь не найден" }, 404);
-        return;
-      }
-      sendJson(res, { user: adminUserView(u, { includePayments: true }) });
-      return;
-    }
-    if (
-      url.pathname.match(/^\/api\/admin\/users\/(\d+)\/xp$/) &&
-      req.method === "POST"
-    ) {
-      const body = await readBody(req);
-      const admin = requireAdminRequest(req, res, url, body);
-      if (!admin) return;
-      const id = Number(url.pathname.split("/")[4]);
-      const value = Number(body.value);
-      if (!Number.isFinite(value)) {
-        sendJson(res, { error: "value required" }, 400);
-        return;
-      }
-      const mode = body.mode === "set" ? "set" : "add";
-      const out =
-        mode === "set"
-          ? storage.setXp(id, value, `admin:${admin.id}`)
-          : storage.addXp(id, value, `admin:${admin.id}`);
-      if (!out || !out.user) {
-        sendJson(res, { error: "Не удалось изменить XP" }, 400);
-        return;
-      }
-      notifyProfileUpdate(id, {
-        leveledUp: out.leveledUp,
-        fromLevel: out.fromLevel,
-        toLevel: out.toLevel,
-      });
-      auditAdmin(admin.id, mode === "set" ? "xp_set" : "xp_add", {
-        targetId: id,
-        value,
-      });
-      sendJson(res, {
-        user: adminUserView(out.user, { includePayments: true }),
-        result: out,
-      });
-      return;
-    }
-    if (
-      url.pathname.match(/^\/api\/admin\/users\/(\d+)\/level$/) &&
-      req.method === "POST"
-    ) {
-      const body = await readBody(req);
-      const admin = requireAdminRequest(req, res, url, body);
-      if (!admin) return;
-      const id = Number(url.pathname.split("/")[4]);
-      const level = Math.max(
-        1,
-        Math.min(999, Math.floor(Number(body.level) || 1)),
-      );
-      const out = storage.setLevel(id, level, `admin:${admin.id}`);
-      notifyProfileUpdate(id, {
-        leveledUp: out.leveledUp,
-        fromLevel: out.fromLevel,
-        toLevel: out.toLevel,
-      });
-      auditAdmin(admin.id, "level_set", { targetId: id, level });
-      sendJson(res, {
-        user: adminUserView(out.user, { includePayments: true }),
-        result: out,
-      });
-      return;
-    }
-    if (
-      url.pathname.match(/^\/api\/admin\/users\/(\d+)\/cosmetics\/grant$/) &&
-      req.method === "POST"
-    ) {
-      const body = await readBody(req);
-      const admin = requireAdminRequest(req, res, url, body);
-      if (!admin) return;
-      const id = Number(url.pathname.split("/")[4]);
-      const kind = String(body.kind || "");
-      const itemId = body.itemId;
-      try {
-        validateCosmeticInput(kind, itemId);
-        let u = storage.grantItem(id, kind, itemId);
-        if (body.equip) u = storage.equipItem(id, kind, itemId);
-        notifyProfileUpdate(id);
-        auditAdmin(admin.id, "cosmetic_grant", {
-          targetId: id,
-          kind,
-          itemId,
-          equip: Boolean(body.equip),
-        });
-        sendJson(res, { user: adminUserView(u, { includePayments: true }) });
-      } catch (e) {
-        sendJson(res, { error: e.message }, 400);
-      }
-      return;
-    }
-    if (
-      url.pathname.match(/^\/api\/admin\/users\/(\d+)\/cosmetics\/revoke$/) &&
-      req.method === "POST"
-    ) {
-      const body = await readBody(req);
-      const admin = requireAdminRequest(req, res, url, body);
-      if (!admin) return;
-      const id = Number(url.pathname.split("/")[4]);
-      const kind = String(body.kind || "");
-      const itemId = body.itemId;
-      try {
-        validateCosmeticInput(kind, itemId);
-        const u = storage.revokeItem(id, kind, itemId);
-        notifyProfileUpdate(id);
-        auditAdmin(admin.id, "cosmetic_revoke", { targetId: id, kind, itemId });
-        sendJson(res, { user: adminUserView(u, { includePayments: true }) });
-      } catch (e) {
-        sendJson(res, { error: e.message }, 400);
-      }
-      return;
-    }
-    if (
-      url.pathname.match(/^\/api\/admin\/users\/(\d+)\/premium$/) &&
-      req.method === "POST"
-    ) {
-      const body = await readBody(req);
-      const admin = requireAdminRequest(req, res, url, body);
-      if (!admin) return;
-      const id = Number(url.pathname.split("/")[4]);
-      const u = storage.updateUser(id, (user) => {
-        if (body.mode === "clear" || body.active === false) {
-          user.premium = false;
-          user.premiumUntil = 0;
-          return;
-        }
-        const days = Math.max(
-          1,
-          Math.min(3650, Math.floor(Number(body.days) || 30)),
-        );
-        user.premium = true;
-        user.premiumUntil =
-          Math.max(Number(user.premiumUntil || 0), Date.now()) +
-          days * 24 * 60 * 60 * 1000;
-      });
-      notifyProfileUpdate(id);
-      auditAdmin(
-        admin.id,
-        body.mode === "clear" || body.active === false
-          ? "premium_clear"
-          : "premium_grant",
-        { targetId: id, days: body.days || null },
-      );
-      sendJson(res, { user: adminUserView(u, { includePayments: true }) });
-      return;
-    }
-    if (
-      url.pathname.match(/^\/api\/admin\/users\/(\d+)\/stats$/) &&
-      req.method === "POST"
-    ) {
-      const body = await readBody(req);
-      const admin = requireAdminRequest(req, res, url, body);
-      if (!admin) return;
-      const id = Number(url.pathname.split("/")[4]);
-      const u = storage.updateUser(id, (user) => {
-        if (body.mode === "reset") {
-          user.stats = storage.defaultStats();
-          return;
-        }
-        const patch = body.stats || {};
-        const stats = { ...(user.stats || storage.defaultStats()) };
-        for (const key of Object.keys(storage.defaultStats())) {
-          if (key in patch)
-            stats[key] = Math.max(0, Math.floor(Number(patch[key]) || 0));
-        }
-        user.stats = stats;
-      });
-      notifyProfileUpdate(id);
-      auditAdmin(
-        admin.id,
-        body.mode === "reset" ? "stats_reset" : "stats_patch",
-        { targetId: id },
-      );
-      sendJson(res, { user: adminUserView(u, { includePayments: true }) });
-      return;
-    }
-    if (
-      url.pathname.match(/^\/api\/admin\/users\/(\d+)\/profile$/) &&
-      req.method === "POST"
-    ) {
-      const body = await readBody(req);
-      const admin = requireAdminRequest(req, res, url, body);
-      if (!admin) return;
-      const id = Number(url.pathname.split("/")[4]);
-      const u = storage.updateUser(id, (user) => {
-        if (body.name != null)
-          user.name = String(body.name).trim().slice(0, 30) || user.name;
-        if (body.username !== undefined)
-          user.username = body.username
-            ? String(body.username).replace(/^@/, "").slice(0, 32)
-            : null;
-        if (body.avatar !== undefined)
-          user.avatar = body.avatar ? String(body.avatar).slice(0, 500) : null;
-      });
-      notifyProfileUpdate(id);
-      auditAdmin(admin.id, "profile_patch", { targetId: id });
-      sendJson(res, { user: adminUserView(u, { includePayments: true }) });
-      return;
-    }
-    if (url.pathname === "/api/admin/notify" && req.method === "POST") {
-      const body = await readBody(req);
-      const admin = requireAdminRequest(req, res, url, body);
-      if (!admin) return;
-      const targetId = Number(body.targetId);
-      const message = String(body.message || "")
-        .trim()
-        .slice(0, 1000);
-      if (!targetId || !message) {
-        sendJson(res, { error: "targetId/message required" }, 400);
-        return;
-      }
-      const deliveredWs = notifyUser(targetId, {
-        type: "admin:message",
-        message,
-        from: admin.id,
-        ts: Date.now(),
-      });
-      if (bot && body.telegram !== false) {
-        bot.telegram
-          .sendMessage(targetId, `🛡 Сообщение от админа:\n\n${message}`)
-          .catch(() => {});
-      }
-      auditAdmin(admin.id, "notify", { targetId, deliveredWs });
-      sendJson(res, { ok: true, deliveredWs });
-      return;
-    }
-    if (url.pathname === "/api/admin/rooms" && req.method === "GET") {
-      const admin = requireAdminRequest(req, res, url);
-      if (!admin) return;
-      sendJson(res, {
-        rooms: Array.from(rooms.values()).map(getRoomAdminView),
-      });
-      return;
-    }
-    if (
-      url.pathname.match(/^\/api\/admin\/rooms\/[^/]+\/action$/) &&
-      req.method === "POST"
-    ) {
-      const body = await readBody(req);
-      const admin = requireAdminRequest(req, res, url, body);
-      if (!admin) return;
-      const code = url.pathname.split("/")[4].toUpperCase();
-      const room = rooms.get(code);
-      if (!room) {
-        sendJson(res, { error: "Комната не найдена" }, 404);
-        return;
-      }
-      if (body.action === "close") {
-        for (const id of room.players) {
-          matchAssignments.delete(id);
-          notifyUser(id, {
-            type: "room:kicked",
-            code,
-            reason: "admin",
-            by: admin.id,
-          });
-        }
-        rooms.delete(code);
-        chats.delete(code);
-        if (currentMatchRoomCode === code) currentMatchRoomCode = null;
-        auditAdmin(admin.id, "room_close", { code });
-        sendJson(res, { ok: true, closed: true });
-        return;
-      }
-      if (body.action === "backToLobby") {
-        room.status = "lobby";
-        room.currentRound = 0;
-        room.lastResult = null;
-        auditAdmin(admin.id, "room_lobby", { code });
-        sendJson(res, { room: pushRoom(code) });
-        return;
-      }
-      if (body.action === "kick") {
-        const targetId = Number(body.targetId);
-        if (!room.players.includes(targetId)) {
-          sendJson(res, { error: "Игрок не в комнате" }, 400);
-          return;
-        }
-        room.players = room.players.filter((id) => id !== targetId);
-        matchAssignments.delete(targetId);
-        if (room.ownerId === targetId && room.players.length > 0)
-          room.ownerId = room.players[0];
-        notifyUser(targetId, {
-          type: "room:kicked",
-          code,
-          reason: "admin",
-          by: admin.id,
-        });
-        auditAdmin(admin.id, "room_kick", { code, targetId });
-        if (room.players.length === 0) {
-          rooms.delete(code);
-          chats.delete(code);
-          sendJson(res, { ok: true, closed: true });
-          return;
-        }
-        sendJson(res, { room: pushRoom(code) });
-        return;
-      }
-      sendJson(res, { error: "Неизвестное действие" }, 400);
-      return;
-    }
-
-    // ==================== ANALYTICS ====================
-    if (url.pathname === "/api/analytics/track" && req.method === "POST") {
-      const body = await readBody(req);
-      const event = String(body.event || "").slice(0, 64);
-      if (!event) {
-        sendJson(res, { error: "event required" }, 400);
-        return;
-      }
-      storage.trackEvent(event, {
-        playerId: body.playerId || null,
-        ...body.props,
-      });
-      sendJson(res, { ok: true });
-      return;
-    }
-    if (url.pathname === "/api/analytics/summary" && req.method === "GET") {
-      const admin = getAdminFromRequest(req, url);
-      const legacyPlayerId = Number(url.searchParams.get("playerId"));
-      if (!admin.ok && !ADMIN_USER_IDS.includes(legacyPlayerId)) {
-        sendJson(res, { error: "Только админы" }, 403);
-        return;
-      }
-      sendJson(res, storage.summarizeEvents());
-      return;
-    }
-
-    if (url.pathname.match(/^\/api\/rooms\/[^/]+$/)) {
-      const code = url.pathname.split("/")[3].toUpperCase();
-      const room = getApiRoom(code);
-      if (!room) {
-        sendJson(res, { error: "Комната не найдена" }, 404);
-        return;
-      }
-      sendJson(res, { room });
-      return;
-    }
-    if (url.pathname === "/telegram" && req.method === "POST" && bot) {
-      const body = await readRaw(req);
-      await bot.handleUpdate(JSON.parse(body));
-      res.writeHead(200).end("ok");
-      return;
-    }
-    serveStatic(publicDir, url.pathname, res);
-  });
-}
-
-function readRaw(req) {
-  return new Promise((resolve, reject) => {
-    let data = "";
-    req.on("data", (chunk) => {
-      data += chunk;
-    });
-    req.on("end", () => resolve(data));
-    req.on("error", reject);
-  });
-}
-
-async function readBody(req) {
-  const raw = await readRaw(req);
-  if (!raw) return {};
-  return JSON.parse(raw);
-}
-
-function sendJson(res, payload, status = 200) {
-  res.writeHead(status, { "Content-Type": "application/json; charset=utf-8" });
-  res.end(JSON.stringify(payload));
-}
-
-function applyCorsHeaders(req, res) {
-  const configured = String(process.env.CORS_ALLOW_ORIGIN || "*");
-  const origin = req.headers.origin;
-  if (configured === "*") {
-    res.setHeader("Access-Control-Allow-Origin", "*");
-  } else if (origin) {
-    const allowed = configured
-      .split(",")
-      .map((item) => item.trim())
-      .filter(Boolean);
-    if (allowed.includes(origin)) {
-      res.setHeader("Access-Control-Allow-Origin", origin);
-      res.setHeader("Vary", "Origin");
-    }
-  }
-  res.setHeader(
-    "Access-Control-Allow-Headers",
-    "Content-Type, X-Telegram-Init-Data, X-Admin-User-Id",
-  );
-  res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
-  res.setHeader("Access-Control-Max-Age", "86400");
-}
-
-function serveStatic(publicDir, pathname, res) {
-  const safePath =
-    pathname === "/" ? "/index.html" : decodeURIComponent(pathname);
-  const filePath = path.normalize(path.join(publicDir, safePath));
-  if (!filePath.startsWith(publicDir)) {
-    res.writeHead(403).end("Forbidden");
-    return;
-  }
-  fs.readFile(filePath, (error, content) => {
-    if (error) {
-      res.writeHead(404).end("Not found");
-      return;
-    }
-    const ext = path.extname(filePath);
-    const types = {
-      ".html": "text/html",
-      ".css": "text/css",
-      ".js": "application/javascript",
-      ".svg": "image/svg+xml",
-      ".png": "image/png",
-    };
-    res.writeHead(200, {
-      "Content-Type": `${types[ext] || "application/octet-stream"}; charset=utf-8`,
-    });
-    res.end(content);
-  });
-}
-
-const bot = setupBot();
-const server = createServer(bot);
-setupWebSocket(server);
-server.listen(PORT, async () => {
-  console.log(`Кто шпион app is running on ${PUBLIC_URL} (port ${PORT})`);
-  console.log(`WebSocket endpoint: ${PUBLIC_URL.replace(/^http/, "ws")}/ws`);
-  if (bot) {
-    if (process.env.WEBHOOK_URL) {
-      await bot.telegram.setWebhook(
-        `${normalizePublicUrl(process.env.WEBHOOK_URL)}/telegram`,
-      );
-      console.log("Telegram webhook is configured.");
-    } else {
-      bot.launch();
-      console.log("Telegram bot polling started.");
-    }
-  } else {
-    console.log("BOT_TOKEN is not set, web preview only.");
-  }
-});
-
-process.once("SIGINT", () => {
-  if (bot) bot.stop("SIGINT");
-  try {
-    storage.flush("users");
-    storage.flush("payments");
-  } catch (_) {}
-  server.close();
-});
-process.once("SIGTERM", () => {
-  if (bot) bot.stop("SIGTERM");
-  try {
-    storage.flush("users");
-    storage.flush("payments");
-  } catch (_) {}
-  server.close();
-});
+      
