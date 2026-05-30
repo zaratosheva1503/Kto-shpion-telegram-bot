@@ -26,7 +26,8 @@ const { PACKS } = require("../data/packs");
 // Хелперы источников реальных картинок
 // ---------------------------------------------------------------------------
 // Флаги: flagcdn.com — стабильный CDN, ISO 3166-1 alpha-2 коды в нижнем регистре.
-const flag = (code) => `https://flagcdn.com/w640/${code}.png`;
+const FLAG_BASE = "https://flagcdn.com/w640/";
+const flag = (code) => FLAG_BASE + code + ".png";
 
 // ---------------------------------------------------------------------------
 // ПАК: Страны (50 настоящих флагов)
@@ -92,7 +93,7 @@ const countriesPack = {
   cover: flag("un"),
   free: true,
   cards: COUNTRIES.map(([name, nameEn, code]) => ({
-    id: `countries-${code}`,
+    id: "countries-" + code,
     name,
     nameEn,
     image: flag(code),
@@ -114,9 +115,9 @@ upsertPack(countriesPack);
 const header =
   "// Данные паков и карт для игры «Кто шпион».\n" +
   "// Часть картинок проставляется скриптом scripts/enrich-packs.js.\n\n";
-const out = `${header}const PACKS = ${JSON.stringify(PACKS, null, 2)};\n\nmodule.exports = { PACKS };\n`;
+const out = header + "const PACKS = " + JSON.stringify(PACKS, null, 2) + ";\n\nmodule.exports = { PACKS };\n";
 fs.writeFileSync(packsPath, out, "utf8");
 
 console.log(
-  `packs.js обновлён: всего паков ${PACKS.length}; пак "Страны" = ${countriesPack.cards.length} карт (настоящие флаги).`,
+  "packs.js обновлён: всего паков " + PACKS.length + "; пак Страны = " + countriesPack.cards.length + " карт (настоящие флаги).",
 );
