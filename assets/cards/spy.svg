@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="900" height="600" viewBox="0 0 900 600">
+  <defs>
+    <linearGradient id="g" x1="0" x2="1" y1="0" y2="1"><stop offset="0" stop-color="#111827"/><stop offset="1" stop-color="#7f1d1d"/></linearGradient>
+    <filter id="s"><feDropShadow dx="0" dy="12" stdDeviation="18" flood-color="#000" flood-opacity="0.55"/></filter>
+  </defs>
+  <rect width="900" height="600" rx="54" fill="url(#g)"/>
+  <circle cx="720" cy="110" r="160" fill="#ef4444" opacity="0.12"/>
+  <g filter="url(#s)">
+    <text x="450" y="230" text-anchor="middle" font-size="105" font-family="Arial, sans-serif">🕵️‍♂️</text>
+    <text x="450" y="345" text-anchor="middle" fill="#ff6b6b" font-size="58" font-weight="900" font-family="Arial, sans-serif">ТЫ — ШПИОН</text>
+    <text x="450" y="410" text-anchor="middle" fill="#f3f4f6" font-size="26" font-weight="700" font-family="Arial, sans-serif">Слушай ассоциации и угадывай карту</text>
+  </g>
+</svg>

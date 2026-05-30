@@ -1,0 +1,1229 @@
+<!doctype html>
+<html lang="ru" data-theme="dark">
+    <head>
+        <meta charset="UTF-8" />
+        <meta
+            name="viewport"
+            content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover"
+        />
+        <meta name="theme-color" content="#0b0b14" />
+        <title>Кто шпион — Telegram игра</title>
+        <link rel="stylesheet" href="style.css" />
+        <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    </head>
+    <body>
+        <div class="bg-aurora" aria-hidden="true">
+            <span class="aurora-blob a"></span>
+            <span class="aurora-blob b"></span>
+            <span class="aurora-blob c"></span>
+            <span class="aurora-grid"></span>
+        </div>
+
+        <div class="app-shell">
+            <header class="topbar">
+                <div class="topbar-title">
+                    <span class="logo">
+                        <span class="logo-glyph">🕵️</span>
+                        <span class="logo-ring"></span>
+                    </span>
+                    <div class="topbar-text">
+                        <h1>КТО ШПИОН</h1>
+                        <small id="page-subtitle"
+                            >Найди шпиона среди своих</small
+                        >
+                    </div>
+                </div>
+                <button
+                    class="user-chip"
+                    id="user-chip"
+                    type="button"
+                    title="Изменить имя"
+                >
+                    <span class="user-chip-emoji" id="user-chip-emoji">😎</span>
+                    <span class="user-chip-name" id="user-chip-name"
+                        >Игрок</span
+                    >
+                </button>
+            </header>
+
+            <main class="pages">
+                <!-- HOME -->
+                <section class="page is-active" data-page="home" id="page-home">
+                    <div class="hero-card animate-pop">
+                        <div class="hero-card-glow"></div>
+                        <div class="hero-card-row">
+                            <div class="hero-emoji floating">🕵️‍♂️</div>
+                            <div class="hero-text">
+                                <h2>Готов играть?</h2>
+                                <p>
+                                    Найди игру онлайн или собери друзей в свою
+                                    комнату
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <section class="actions" id="actions-section">
+                        <button
+                            class="primary primary-glow"
+                            id="find-game"
+                            type="button"
+                        >
+                            <span class="btn-emoji">🎯</span>
+                            <span class="btn-label">Найти игру</span>
+                            <span class="btn-sub">Авто-подбор 3 игроков</span>
+                            <span class="btn-shine"></span>
+                        </button>
+
+                        <button
+                            class="primary primary-gradient"
+                            id="create-room"
+                            type="button"
+                        >
+                            <span class="btn-emoji">🎮</span>
+                            <span class="btn-label">Создать комнату</span>
+                            <span class="btn-sub">Пригласи друзей по коду</span>
+                            <span class="btn-shine"></span>
+                        </button>
+
+                        <div class="join-box">
+                            <small>Или присоединиться по коду</small>
+                            <div class="join-row">
+                                <input
+                                    id="join-code"
+                                    placeholder="ABC123"
+                                    maxlength="6"
+                                    autocomplete="off"
+                                    inputmode="latin"
+                                    autocapitalize="characters"
+                                />
+                                <button id="join-room" type="button">
+                                    <span>→</span>
+                                </button>
+                            </div>
+                            <small class="join-hint">От 3 до 8 игроков</small>
+                        </div>
+                    </section>
+
+                    <section
+                        class="matchmaking-card hidden"
+                        id="matchmaking-card"
+                    >
+                        <div class="mm-spinner">
+                            <span class="mm-pulse"></span>
+                            <span class="mm-pulse"></span>
+                            <span class="mm-pulse"></span>
+                            <span class="mm-icon">🎯</span>
+                        </div>
+                        <h3 id="mm-title">Поиск игры...</h3>
+                        <p id="mm-status">Ждём ещё игроков</p>
+                        <div class="mm-progress">
+                            <div
+                                class="mm-progress-bar"
+                                id="mm-progress-bar"
+                            ></div>
+                        </div>
+                        <div class="mm-meta" id="mm-meta">1 из 3 игроков</div>
+                        <button
+                            class="secondary mm-cancel"
+                            id="mm-cancel"
+                            type="button"
+                        >
+                            Отменить поиск
+                        </button>
+                    </section>
+
+                    <section class="room-card hidden" id="room-card">
+                        <div class="room-info-bar" id="room-info-bar"></div>
+                        <small>Код комнаты</small>
+                        <h2 id="room-code">ABC123</h2>
+                        <div class="room-actions">
+                            <button id="copy-link" type="button">
+                                📋 Скопировать
+                            </button>
+                            <button id="share-link" type="button">
+                                👥 Пригласить
+                            </button>
+                        </div>
+                        <div id="room-players"></div>
+                        <p id="room-status">Минимум 3 игрока для старта</p>
+                        <div class="room-bottom-actions">
+                            <button
+                                class="btn-packs"
+                                id="browse-packs"
+                                type="button"
+                            >
+                                🎒 Паки
+                            </button>
+                            <button
+                                class="btn-leave"
+                                id="leave-room"
+                                type="button"
+                            >
+                                🚪 Выйти
+                            </button>
+                        </div>
+                    </section>
+
+                    <section class="packs-browser hidden" id="packs-browser">
+                        <div class="packs-header">
+                            <h3>🎒 Выбери паки для игры</h3>
+                            <span class="packs-counter" id="packs-counter"
+                                >выбрано 0</span
+                            >
+                            <button
+                                id="close-packs"
+                                type="button"
+                                aria-label="Закрыть"
+                            >
+                                ✕
+                            </button>
+                        </div>
+                        <div class="packs-grid" id="packs-grid"></div>
+                    </section>
+
+                    <section class="chat-section hidden" id="chat-section">
+                        <button
+                            class="chat-toggle"
+                            id="chat-toggle"
+                            type="button"
+                        >
+                            💬 Чат
+                        </button>
+                        <div class="chat-body hidden" id="chat-body">
+                            <div class="chat-messages" id="chat-messages"></div>
+                            <div class="chat-input-row">
+                                <input
+                                    id="chat-input"
+                                    placeholder="Сообщение..."
+                                    maxlength="500"
+                                />
+                                <button id="chat-send" type="button">➤</button>
+                            </div>
+                        </div>
+                    </section>
+
+                    <section class="game-screen hidden" id="game-screen">
+                        <div id="game-content"></div>
+                    </section>
+
+                    <button
+                        class="rules-toggle"
+                        id="rules-toggle"
+                        type="button"
+                    >
+                        📖 Показать правила
+                    </button>
+                    <section class="rules hidden" id="rules">
+                        <p>
+                            🎯 <strong>Цель:</strong> мирные вычисляют шпиона,
+                            шпион пытается понять локацию.
+                        </p>
+                        <p>👥 <strong>Игроков:</strong> 3–8 человек.</p>
+                        <strong>Как идёт игра:</strong>
+                        <ol>
+                            <li>
+                                Создаёшь комнату — выбираешь онлайн/офлайн,
+                                тему, число кругов.
+                            </li>
+                            <li>Стартует раунд: каждому показывается роль.</li>
+                            <li>По очереди каждый говорит одну ассоциацию.</li>
+                            <li>Через N кругов хост открывает голосование.</li>
+                            <li>
+                                Большинство голосов — кто шпион. Если ничья —
+                                хост переголосовывает или ещё круг.
+                            </li>
+                            <li>
+                                Шпион в любой момент может попробовать угадать
+                                тему.
+                            </li>
+                        </ol>
+                    </section>
+                </section>
+
+                <!-- SETTINGS -->
+                <section class="page" data-page="settings" id="page-settings">
+                    <div class="section-title animate-pop">
+                        <span class="section-emoji">⚙️</span>
+                        <div>
+                            <h2>Настройки</h2>
+                            <small>Тема, режим, время и многое другое</small>
+                        </div>
+                    </div>
+
+                    <div
+                        class="card theme-card animate-pop"
+                        style="--delay: 0.05s"
+                    >
+                        <div class="theme-card-header">
+                            <span class="theme-icon" id="theme-icon">🌙</span>
+                            <div>
+                                <strong>Тема оформления</strong>
+                                <small id="theme-current">Тёмная</small>
+                            </div>
+                        </div>
+                        <div
+                            class="theme-switch"
+                            id="theme-switch"
+                            role="switch"
+                            tabindex="0"
+                            aria-checked="true"
+                        >
+                            <span class="theme-switch-thumb"></span>
+                            <span
+                                class="theme-switch-icon theme-switch-icon-sun"
+                                >☀️</span
+                            >
+                            <span
+                                class="theme-switch-icon theme-switch-icon-moon"
+                                >🌙</span
+                            >
+                        </div>
+                    </div>
+
+                    <div class="card animate-pop" style="--delay: 0.1s">
+                        <label>🏴 Режим</label>
+                        <div class="segmented" data-setting="mode">
+                            <button
+                                class="active"
+                                data-value="online"
+                                type="button"
+                            >
+                                🕹 Онлайн
+                            </button>
+                            <button data-value="offline" type="button">
+                                🤝 Офлайн
+                            </button>
+                        </div>
+
+                        <label>🔁 Круги ассоциаций</label>
+                        <div class="segmented four" data-setting="rounds">
+                            <button data-value="1" type="button">1</button>
+                            <button class="active" data-value="2" type="button">
+                                2
+                            </button>
+                            <button data-value="3" type="button">3</button>
+                            <button data-value="4" type="button">🎲</button>
+                        </div>
+
+                        <label>⏱ Давление времени</label>
+                        <small class="muted-line"
+                            >Секунд на каждый ход. Не успел — пропуск.</small
+                        >
+                        <div class="segmented five" data-setting="timer">
+                            <button class="active" data-value="0" type="button">
+                                Выкл
+                            </button>
+                            <button data-value="15" type="button">15с</button>
+                            <button data-value="30" type="button">30с</button>
+                            <button data-value="45" type="button">45с</button>
+                            <button data-value="60" type="button">60с</button>
+                        </div>
+                    </div>
+
+                    <div class="card animate-pop" style="--delay: 0.15s">
+                        <div class="switch-row">
+                            <div>
+                                <strong>💡 Подсказка для шпиона</strong
+                                ><small
+                                    >Шпион видит 4 варианта вместо всех карт
+                                    пака</small
+                                >
+                            </div>
+                            <label class="ios-switch">
+                                <input
+                                    type="checkbox"
+                                    data-setting="spyHints"
+                                    aria-label="Подсказка для шпиона"
+                                />
+                                <span class="ios-switch-track"></span>
+                            </label>
+                        </div>
+                        <div class="switch-row">
+                            <div>
+                                <strong>🚫 Запретить «я угадал»</strong
+                                ><small
+                                    >Шпион не сможет угадывать, только
+                                    голосование</small
+                                >
+                            </div>
+                            <label class="ios-switch">
+                                <input
+                                    type="checkbox"
+                                    data-setting="spyCantGuess"
+                                    aria-label="Запретить я угадал"
+                                />
+                                <span class="ios-switch-track"></span>
+                            </label>
+                        </div>
+                        <div class="switch-row">
+                            <div>
+                                <strong>📳 Вибрация телефона</strong
+                                ><small
+                                    >Жужжит на твой ход / голосование /
+                                    результат</small
+                                >
+                            </div>
+                            <label class="ios-switch">
+                                <input
+                                    type="checkbox"
+                                    data-setting="phoneVibration"
+                                    aria-label="Вибрация телефона"
+                                />
+                                <span class="ios-switch-track"></span>
+                            </label>
+                        </div>
+                    </div>
+
+                    <a
+                        class="credit-card animate-pop"
+                        style="--delay: 0.2s"
+                        href="https://t.me/timurbro302"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                    >
+                        <div class="credit-avatar">
+                            <span class="credit-emoji">👨‍💻</span>
+                            <span class="credit-spark"></span>
+                        </div>
+                        <div class="credit-text">
+                            <small>Создал</small>
+                            <strong>Тимур</strong>
+                            <span class="credit-tag">@timurbro302</span>
+                        </div>
+                        <span class="credit-arrow">→</span>
+                    </a>
+                </section>
+
+                <!-- PROFILE -->
+                <section class="page" data-page="profile" id="page-profile">
+                    <div class="profile-hero animate-pop">
+                        <div class="profile-hero-glow"></div>
+                        <button
+                            class="avatar-ring"
+                            id="avatar-picker-trigger"
+                            type="button"
+                            aria-label="Сменить аватар"
+                        >
+                            <div class="avatar" id="profile-avatar">😎</div>
+                            <span class="avatar-edit-badge" aria-hidden="true"
+                                >✏️</span
+                            >
+                        </button>
+                        <input
+                            class="profile-name-input"
+                            id="profile-name"
+                            maxlength="24"
+                            placeholder="Твоё имя"
+                        />
+                        <small class="profile-id" id="profile-id"></small>
+                        <div class="profile-rank" id="profile-rank">
+                            <span class="rank-icon">🥉</span>
+                            <span class="rank-text">Новичок</span>
+                        </div>
+                    </div>
+
+                    <div class="stats-grid">
+                        <div class="stat animate-pop" style="--delay: 0.05s">
+                            <div class="stat-icon">🎮</div>
+                            <div class="stat-value" data-stat="games">0</div>
+                            <div class="stat-label">Сыграно</div>
+                        </div>
+                        <div class="stat win animate-pop" style="--delay: 0.1s">
+                            <div class="stat-icon">🏆</div>
+                            <div class="stat-value" data-stat="wins">0</div>
+                            <div class="stat-label">Побед</div>
+                        </div>
+                        <div
+                            class="stat lose animate-pop"
+                            style="--delay: 0.15s"
+                        >
+                            <div class="stat-icon">💀</div>
+                            <div class="stat-value" data-stat="losses">0</div>
+                            <div class="stat-label">Поражений</div>
+                        </div>
+                        <div
+                            class="stat rate animate-pop"
+                            style="--delay: 0.2s"
+                        >
+                            <div class="stat-icon">📊</div>
+                            <div class="stat-value" data-stat="winRate">0%</div>
+                            <div class="stat-label">Процент побед</div>
+                        </div>
+                    </div>
+
+                    <div
+                        class="card role-stats-card animate-pop"
+                        style="--delay: 0.25s"
+                    >
+                        <h3>👥 Игра по ролям</h3>
+                        <div class="role-stat-row">
+                            <div class="role-stat-info">
+                                <span class="role-stat-emoji">🕵️</span>
+                                <div>
+                                    <strong>Шпион</strong>
+                                    <small
+                                        ><span data-stat="spyWins">0</span>
+                                        побед из
+                                        <span data-stat="spyCount"
+                                            >0</span
+                                        ></small
+                                    >
+                                </div>
+                            </div>
+                            <div class="role-stat-bar">
+                                <span
+                                    class="role-stat-fill spy"
+                                    data-stat-bar="spy"
+                                    style="width: 0%"
+                                ></span>
+                            </div>
+                            <div class="role-stat-percent" data-stat="spyRate">
+                                0%
+                            </div>
+                        </div>
+                        <div class="role-stat-row">
+                            <div class="role-stat-info">
+                                <span class="role-stat-emoji">🧑‍🤝‍🧑</span>
+                                <div>
+                                    <strong>Мирный</strong>
+                                    <small
+                                        ><span data-stat="peacefulWins">0</span>
+                                        побед из
+                                        <span data-stat="peacefulCount"
+                                            >0</span
+                                        ></small
+                                    >
+                                </div>
+                            </div>
+                            <div class="role-stat-bar">
+                                <span
+                                    class="role-stat-fill peaceful"
+                                    data-stat-bar="peaceful"
+                                    style="width: 0%"
+                                ></span>
+                            </div>
+                            <div
+                                class="role-stat-percent"
+                                data-stat="peacefulRate"
+                            >
+                                0%
+                            </div>
+                        </div>
+                    </div>
+
+                    <div
+                        class="card streak-card animate-pop"
+                        style="--delay: 0.3s"
+                    >
+                        <div class="streak-info">
+                            <span class="streak-icon">🔥</span>
+                            <div>
+                                <strong>Серия побед</strong>
+                                <small
+                                    >Текущая <b data-stat="streak">0</b> ·
+                                    Лучшая
+                                    <b data-stat="bestStreak">0</b></small
+                                >
+                            </div>
+                        </div>
+                    </div>
+
+                    <div
+                        class="card xp-card animate-pop"
+                        style="--delay: 0.05s"
+                    >
+                        <div class="xp-head">
+                            <div>
+                                <strong
+                                    >Уровень
+                                    <span id="profile-level">1</span></strong
+                                >
+                                <small id="profile-xp">0 / 100 XP</small>
+                            </div>
+                            <span class="xp-badge" id="profile-level-badge"
+                                >🥚</span
+                            >
+                        </div>
+                        <div class="xp-bar">
+                            <span
+                                class="xp-fill"
+                                id="profile-xp-fill"
+                                style="width: 0%"
+                            ></span>
+                        </div>
+                    </div>
+
+                    <div
+                        class="card premium-card animate-pop"
+                        style="--delay: 0.07s"
+                        id="premium-card"
+                    >
+                        <div class="premium-head">
+                            <span class="premium-emoji">💛</span>
+                            <div>
+                                <strong>На покушать</strong>
+                                <small
+                                    >Поддержи разработчика — получи премиум и
+                                    косметику</small
+                                >
+                            </div>
+                        </div>
+                        <button
+                            class="primary primary-gradient"
+                            id="btn-open-donate"
+                            type="button"
+                        >
+                            <span class="btn-emoji">⭐</span>
+                            <span class="btn-label">Закинуть звёзд</span>
+                            <span class="btn-sub">100 / 200 / 500 / своё</span>
+                        </button>
+                        <small
+                            id="premium-status"
+                            class="premium-status"
+                        ></small>
+                    </div>
+
+                    <button class="reset-stats" id="reset-stats" type="button">
+                        🗑 Сбросить статистику
+                    </button>
+                </section>
+
+                <!-- FRIENDS -->
+                <section class="page" data-page="friends" id="page-friends">
+                    <div class="section-title animate-pop">
+                        <span class="section-emoji">👥</span>
+                        <div>
+                            <h2>Друзья</h2>
+                            <small>Ищи, добавляй, зови играть</small>
+                        </div>
+                    </div>
+
+                    <div class="card animate-pop" style="--delay: 0.05s">
+                        <div class="friend-search-row">
+                            <input
+                                id="friend-search-input"
+                                placeholder="@username или ID или имя"
+                                autocomplete="off"
+                            />
+                            <button
+                                class="primary"
+                                id="friend-search-btn"
+                                type="button"
+                            >
+                                🔍
+                            </button>
+                        </div>
+                        <div
+                            class="friend-search-results"
+                            id="friend-search-results"
+                        ></div>
+                    </div>
+
+                    <div
+                        class="card animate-pop"
+                        style="--delay: 0.1s"
+                        id="friend-requests-card"
+                        hidden
+                    >
+                        <h3>
+                            Входящие заявки
+                            <span class="req-count" id="req-count">0</span>
+                        </h3>
+                        <div id="friend-requests-list"></div>
+                    </div>
+
+                    <div class="card animate-pop" style="--delay: 0.15s">
+                        <h3>
+                            Друзья
+                            <span class="friend-count" id="friend-count"
+                                >0</span
+                            >
+                        </h3>
+                        <div id="friends-list"></div>
+                    </div>
+                </section>
+
+                <!-- SHOP -->
+                <section class="page" data-page="shop" id="page-shop">
+                    <div class="section-title animate-pop">
+                        <span class="section-emoji">🛍</span>
+                        <div>
+                            <h2>Магазин</h2>
+                            <small>Косметика за звёзды Telegram</small>
+                        </div>
+                    </div>
+
+                    <div
+                        class="shop-banner card animate-pop"
+                        style="--delay: 0.05s"
+                    >
+                        <span class="shop-banner-emoji">💛</span>
+                        <div>
+                            <strong>На покушать</strong>
+                            <small
+                                >Любой донат — премиум и случайная косметика.
+                                100/200/500/своё.</small
+                            >
+                        </div>
+                        <button
+                            class="primary"
+                            id="btn-shop-donate"
+                            type="button"
+                        >
+                            ⭐ Открыть
+                        </button>
+                    </div>
+
+                    <div class="shop-tabs" id="shop-tabs">
+                        <button
+                            class="shop-tab active"
+                            data-shop-tab="frames"
+                            type="button"
+                        >
+                            🖼 Рамки
+                        </button>
+                        <button
+                            class="shop-tab"
+                            data-shop-tab="themes"
+                            type="button"
+                        >
+                            🎨 Темы
+                        </button>
+                        <button
+                            class="shop-tab"
+                            data-shop-tab="nameEffects"
+                            type="button"
+                        >
+                            ✨ Имя
+                        </button>
+                        <button
+                            class="shop-tab"
+                            data-shop-tab="statusEmojis"
+                            type="button"
+                        >
+                            🎯 Статус
+                        </button>
+                        <button
+                            class="shop-tab"
+                            data-shop-tab="animatedAvatars"
+                            type="button"
+                        >
+                            🎬 Авы
+                        </button>
+                    </div>
+                    <div class="shop-grid" id="shop-grid"></div>
+                </section>
+
+                <!-- ADMIN -->
+                <section class="page" data-page="admin" id="page-admin">
+                    <div class="admin-hero animate-pop">
+                        <div>
+                            <span class="admin-kicker">🛡 mini app</span>
+                            <h2>Админ-панель</h2>
+                            <p>
+                                Выдавай и забирай уровни, XP, премиум и
+                                косметику. Управляй комнатами без перезапуска
+                                бота.
+                            </p>
+                        </div>
+                        <button
+                            class="secondary"
+                            id="admin-refresh"
+                            type="button"
+                        >
+                            ↻ Обновить
+                        </button>
+                    </div>
+
+                    <div class="admin-summary-grid" id="admin-summary-grid">
+                        <div class="admin-stat">
+                            <span>👥</span
+                            ><strong data-admin-stat="usersTotal">0</strong
+                            ><small>игроков</small>
+                        </div>
+                        <div class="admin-stat">
+                            <span>🟢</span
+                            ><strong data-admin-stat="onlineTotal">0</strong
+                            ><small>онлайн</small>
+                        </div>
+                        <div class="admin-stat">
+                            <span>🎮</span
+                            ><strong data-admin-stat="roomsTotal">0</strong
+                            ><small>комнат</small>
+                        </div>
+                        <div class="admin-stat">
+                            <span>⭐</span
+                            ><strong data-admin-stat="totalStars">0</strong
+                            ><small>звёзд</small>
+                        </div>
+                    </div>
+
+                    <div class="admin-card animate-pop" style="--delay: 0.05s">
+                        <div class="admin-card-head">
+                            <div>
+                                <h3>Поиск игрока</h3>
+                                <small>ID, @username или имя</small>
+                            </div>
+                            <span class="admin-chip" id="admin-me-chip"
+                                >admin</span
+                            >
+                        </div>
+                        <div class="admin-search-row">
+                            <input
+                                id="admin-user-search"
+                                placeholder="Например: 123456789 или @username"
+                                autocomplete="off"
+                            />
+                            <button
+                                class="primary"
+                                id="admin-user-search-btn"
+                                type="button"
+                            >
+                                🔍
+                            </button>
+                        </div>
+                        <div
+                            class="admin-users-results"
+                            id="admin-users-results"
+                        ></div>
+                    </div>
+
+                    <div class="admin-editor hidden" id="admin-user-editor">
+                        <div class="admin-card admin-user-card">
+                            <div class="admin-user-head">
+                                <div
+                                    class="admin-user-avatar"
+                                    id="admin-selected-avatar"
+                                >
+                                    🙂
+                                </div>
+                                <div>
+                                    <h3 id="admin-selected-name">Игрок</h3>
+                                    <small id="admin-selected-meta">ID</small>
+                                </div>
+                            </div>
+                            <div class="admin-user-stats">
+                                <span
+                                    >ур.
+                                    <b id="admin-selected-level">1</b></span
+                                >
+                                <span>XP <b id="admin-selected-xp">0</b></span>
+                                <span
+                                    >премиум
+                                    <b id="admin-selected-premium">нет</b></span
+                                >
+                            </div>
+                        </div>
+
+                        <div class="admin-card">
+                            <h3>Профиль</h3>
+                            <div class="admin-grid-2">
+                                <label
+                                    >Имя<input
+                                        id="admin-profile-name"
+                                        maxlength="30"
+                                        placeholder="Имя"
+                                /></label>
+                                <label
+                                    >Username<input
+                                        id="admin-profile-username"
+                                        maxlength="32"
+                                        placeholder="username без @"
+                                /></label>
+                            </div>
+                            <button
+                                class="secondary"
+                                id="admin-save-profile"
+                                type="button"
+                            >
+                                💾 Сохранить профиль
+                            </button>
+                        </div>
+
+                        <div class="admin-card">
+                            <h3>XP и уровни</h3>
+                            <div class="admin-action-row">
+                                <input
+                                    id="admin-xp-value"
+                                    type="number"
+                                    value="100"
+                                    step="10"
+                                    placeholder="XP"
+                                />
+                                <button
+                                    class="secondary"
+                                    data-admin-xp-add="100"
+                                    type="button"
+                                >
+                                    +100
+                                </button>
+                                <button
+                                    class="secondary"
+                                    data-admin-xp-add="500"
+                                    type="button"
+                                >
+                                    +500
+                                </button>
+                                <button
+                                    class="danger-soft"
+                                    data-admin-xp-add="-100"
+                                    type="button"
+                                >
+                                    -100
+                                </button>
+                                <button
+                                    class="primary"
+                                    id="admin-set-xp"
+                                    type="button"
+                                >
+                                    Выставить XP
+                                </button>
+                            </div>
+                            <div class="admin-action-row">
+                                <input
+                                    id="admin-level-value"
+                                    type="number"
+                                    value="1"
+                                    min="1"
+                                    max="999"
+                                    placeholder="Уровень"
+                                />
+                                <button
+                                    class="primary"
+                                    id="admin-set-level"
+                                    type="button"
+                                >
+                                    🎚 Выставить уровень
+                                </button>
+                            </div>
+                        </div>
+
+                        <div class="admin-card">
+                            <h3>Премиум</h3>
+                            <div class="admin-action-row">
+                                <input
+                                    id="admin-premium-days"
+                                    type="number"
+                                    value="30"
+                                    min="1"
+                                    max="3650"
+                                    placeholder="Дней"
+                                />
+                                <button
+                                    class="primary"
+                                    id="admin-grant-premium"
+                                    type="button"
+                                >
+                                    💛 Выдать
+                                </button>
+                                <button
+                                    class="danger-soft"
+                                    id="admin-clear-premium"
+                                    type="button"
+                                >
+                                    Забрать
+                                </button>
+                            </div>
+                        </div>
+
+                        <div class="admin-card">
+                            <h3>Косметика</h3>
+                            <div class="admin-grid-2">
+                                <label
+                                    >Тип<select
+                                        id="admin-cosmetic-kind"
+                                    ></select
+                                ></label>
+                                <label
+                                    >Предмет<select
+                                        id="admin-cosmetic-item"
+                                    ></select
+                                ></label>
+                            </div>
+                            <label class="admin-inline-check"
+                                ><input
+                                    id="admin-cosmetic-equip"
+                                    type="checkbox"
+                                />
+                                сразу надеть игроку</label
+                            >
+                            <div class="admin-action-row">
+                                <button
+                                    class="primary"
+                                    id="admin-grant-cosmetic"
+                                    type="button"
+                                >
+                                    🎁 Выдать
+                                </button>
+                                <button
+                                    class="danger-soft"
+                                    id="admin-revoke-cosmetic"
+                                    type="button"
+                                >
+                                    🧹 Забрать
+                                </button>
+                            </div>
+                        </div>
+
+                        <div class="admin-card">
+                            <h3>Статистика и сообщение</h3>
+                            <div class="admin-action-row">
+                                <button
+                                    class="danger-soft"
+                                    id="admin-reset-user-stats"
+                                    type="button"
+                                >
+                                    🗑 Сбросить статистику
+                                </button>
+                            </div>
+                            <textarea
+                                id="admin-notify-message"
+                                rows="3"
+                                maxlength="1000"
+                                placeholder="Сообщение игроку"
+                            ></textarea>
+                            <button
+                                class="secondary"
+                                id="admin-send-notify"
+                                type="button"
+                            >
+                                📨 Отправить
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="admin-card animate-pop" style="--delay: 0.1s">
+                        <div class="admin-card-head">
+                            <div>
+                                <h3>Активные комнаты</h3>
+                                <small
+                                    >Кик, возврат в лобби, закрытие
+                                    комнаты</small
+                                >
+                            </div>
+                            <button
+                                class="secondary"
+                                id="admin-refresh-rooms"
+                                type="button"
+                            >
+                                ↻
+                            </button>
+                        </div>
+                        <div
+                            class="admin-rooms-list"
+                            id="admin-rooms-list"
+                        ></div>
+                    </div>
+                </section>
+            </main>
+
+            <nav class="bottom-nav" id="bottom-nav">
+                <span class="nav-pill" id="nav-pill"></span>
+                <button
+                    class="nav-item is-active"
+                    data-tab="home"
+                    type="button"
+                >
+                    <span class="nav-icon">🏠</span>
+                    <span class="nav-label">Главная</span>
+                </button>
+                <button class="nav-item" data-tab="friends" type="button">
+                    <span class="nav-icon">👥</span>
+                    <span class="nav-label">Друзья</span>
+                    <span class="nav-badge hidden" id="friends-badge">0</span>
+                </button>
+                <button class="nav-item" data-tab="shop" type="button">
+                    <span class="nav-icon">🛍</span>
+                    <span class="nav-label">Магазин</span>
+                </button>
+                <button class="nav-item" data-tab="settings" type="button">
+                    <span class="nav-icon">⚙️</span>
+                    <span class="nav-label">Настройки</span>
+                </button>
+                <button class="nav-item" data-tab="profile" type="button">
+                    <span class="nav-icon">👤</span>
+                    <span class="nav-label">Профиль</span>
+                </button>
+                <button
+                    class="nav-item hidden admin-nav-item"
+                    data-tab="admin"
+                    id="admin-nav"
+                    type="button"
+                >
+                    <span class="nav-icon">🛡</span>
+                    <span class="nav-label">Admin</span>
+                </button>
+            </nav>
+        </div>
+
+        <!-- Avatar picker modal -->
+        <div
+            class="avatar-picker hidden"
+            id="avatar-picker"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="avatar-picker-title"
+        >
+            <div class="avatar-picker-backdrop" data-close-avatar></div>
+            <div class="avatar-picker-sheet animate-pop">
+                <div class="avatar-picker-handle"></div>
+                <div class="avatar-picker-head">
+                    <h3 id="avatar-picker-title">Выбери аватар</h3>
+                    <button
+                        class="avatar-picker-close"
+                        type="button"
+                        data-close-avatar
+                        aria-label="Закрыть"
+                    >
+                        ✕
+                    </button>
+                </div>
+                <small class="avatar-picker-hint"
+                    >Тапни, чтобы поставить себе</small
+                >
+                <div class="avatar-grid" id="avatar-grid"></div>
+            </div>
+        </div>
+
+        <!-- Player profile modal -->
+        <div
+            class="player-modal hidden"
+            id="player-modal"
+            role="dialog"
+            aria-modal="true"
+        >
+            <div class="player-modal-backdrop" data-close-player></div>
+            <div class="player-modal-sheet animate-pop">
+                <div class="player-modal-handle"></div>
+                <button
+                    class="player-modal-close"
+                    type="button"
+                    data-close-player
+                    aria-label="Закрыть"
+                >
+                    ✕
+                </button>
+                <div id="player-modal-content">Загрузка...</div>
+            </div>
+        </div>
+
+        <!-- Donation modal "На покушать" -->
+        <div
+            class="donate-modal hidden"
+            id="donate-modal"
+            role="dialog"
+            aria-modal="true"
+        >
+            <div class="donate-backdrop" data-close-donate></div>
+            <div class="donate-sheet animate-pop">
+                <div class="donate-handle"></div>
+                <button
+                    class="donate-close"
+                    type="button"
+                    data-close-donate
+                    aria-label="Закрыть"
+                >
+                    ✕
+                </button>
+                <h3>💛 На покушать</h3>
+                <p class="donate-hint">
+                    Любая сумма поддерживает разработку. За донат — премиум и
+                    случайная косметика.
+                </p>
+                <div class="donate-presets">
+                    <button class="donate-amount" data-stars="100">
+                        ☕ 100 ⭐
+                    </button>
+                    <button class="donate-amount" data-stars="200">
+                        🍔 200 ⭐
+                    </button>
+                    <button class="donate-amount" data-stars="500">
+                        🍕 500 ⭐
+                    </button>
+                    <button class="donate-amount" data-stars="1000">
+                        🥩 1000 ⭐
+                    </button>
+                </div>
+                <div class="donate-custom-row">
+                    <input
+                        id="donate-custom-input"
+                        type="number"
+                        min="1"
+                        max="100000"
+                        placeholder="Своё число (от 1)"
+                    />
+                    <button
+                        class="primary"
+                        id="donate-custom-btn"
+                        type="button"
+                    >
+                        ⭐ Закинуть
+                    </button>
+                </div>
+                <small class="donate-foot" id="donate-foot"></small>
+            </div>
+        </div>
+
+        <!-- Reaction picker (anchored over a message) -->
+        <div class="reaction-picker hidden" id="reaction-picker">
+            <button class="reaction-emoji" data-emoji="👍">👍</button>
+            <button class="reaction-emoji" data-emoji="❤️">❤️</button>
+            <button class="reaction-emoji" data-emoji="😂">😂</button>
+            <button class="reaction-emoji" data-emoji="😮">😮</button>
+            <button class="reaction-emoji" data-emoji="🤔">🤔</button>
+            <button class="reaction-emoji" data-emoji="🤨">🤨</button>
+            <button class="reaction-emoji" data-emoji="🔥">🔥</button>
+            <button class="reaction-emoji" data-emoji="💀">💀</button>
+        </div>
+
+        <!-- Voice chat panel (visible while in a room) -->
+        <div class="voice-panel hidden" id="voice-panel">
+            <button
+                class="voice-toggle"
+                id="voice-toggle"
+                type="button"
+                title="Голосовой чат"
+            >
+                <span class="voice-icon" id="voice-icon">🎙</span>
+                <span class="voice-label" id="voice-label">Войс</span>
+                <span class="voice-status" id="voice-status"></span>
+            </button>
+            <div class="voice-peers" id="voice-peers"></div>
+        </div>
+
+        <!-- Level-up overlay -->
+        <div class="levelup-overlay hidden" id="levelup-overlay">
+            <div class="levelup-card animate-pop">
+                <div class="levelup-emoji">🎉</div>
+                <h2>Новый уровень!</h2>
+                <div class="levelup-level">
+                    <span id="levelup-level">2</span>
+                </div>
+                <p>Так держать! За уровни даём косметику.</p>
+                <button class="primary" id="levelup-close" type="button">
+                    Круто
+                </button>
+            </div>
+        </div>
+
+        <!-- Toast for room invites from friends -->
+        <div class="invite-toast hidden" id="invite-toast">
+            <span class="invite-emoji">📩</span>
+            <div class="invite-text">
+                <strong id="invite-from">Друг</strong>
+                <small id="invite-room">приглашает в комнату ABC123</small>
+            </div>
+            <button class="primary" id="invite-accept" type="button">
+                Войти
+            </button>
+            <button class="invite-decline" id="invite-decline" type="button">
+                ✕
+            </button>
+        </div>
+
+        <script src="script.js"></script>
+        <script src="app-extras.js"></script>
+        <script src="admin.js"></script>
+    </body>
+</html>

@@ -1,0 +1,14 @@
+{
+  "scripts": {
+    "start": "node server.js",
+    "build": "node --check server.js && node --check ws-server.js && node --check data/packs.js && node --check data/storage.js && node --check data/cosmetics.js && node --check script.js && node --check app-extras.js && node --check admin.js && node --check scripts/generate-assets.js && node --check scripts/build-yandex-export.js && node --check yandexport/script.js && node --check yandexport/app-extras.js && node --check yandexport/admin.js && node --check yandexport/yandex-adapter.js",
+    "build:yandex": "node --check scripts/build-yandex-export.js && node scripts/generate-assets.js && node scripts/build-yandex-export.js && node --check yandexport/script.js && node --check yandexport/app-extras.js && node --check yandexport/admin.js && node --check yandexport/yandex-adapter.js",
+    "build:yandex:zip": "node --check scripts/build-yandex-export.js && node scripts/generate-assets.js && node scripts/build-yandex-export.js --zip && node --check yandexport/script.js && node --check yandexport/app-extras.js && node --check yandexport/admin.js && node --check yandexport/yandex-adapter.js",
+    "build:crazygames": "node --check scripts/build-crazygames-export.js && node scripts/generate-assets.js && node scripts/build-crazygames-export.js && node --check crazygamesport/script.js && node --check crazygamesport/app-extras.js && node --check crazygamesport/admin.js && node --check crazygamesport/crazygames-adapter.js",
+    "build:crazygames:zip": "node --check scripts/build-crazygames-export.js && node scripts/generate-assets.js && node scripts/build-crazygames-export.js --zip && node --check crazygamesport/script.js && node --check crazygamesport/app-extras.js && node --check crazygamesport/admin.js && node --check crazygamesport/crazygames-adapter.js"
+  },
+  "dependencies": {
+    "telegraf": "^4.16.3",
+    "ws": "^8.20.1"
+  }
+}
