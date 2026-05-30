@@ -12,49 +12,6 @@
 - Для остальных паков добавлено по 15 карточек и локальные SVG-изображения.
 - Web lobby открывается по ссылке `?join=CODE` и работает как Telegram WebApp/обычная страница.
 
-## Порт для Яндекс Игр
-
-Full-online версия лежит в `yandexport/`. Это копия основного Miniapp-интерфейса (`index.html`, `style.css`, `script.js`, `app-extras.js`, `admin.js`), но без Telegram SDK и с адаптером Яндекс Игр.
-
-Что есть в экспорте:
-
-- тот же интерфейс, нижняя навигация, профиль, друзья, магазин, чат, реакции, голосовой чат и комнаты;
-- онлайн через существующий `server.js`: создание/вход по коду, matchmaking, WebSocket-обновления, чат, друзья, XP/уровни;
-- все паки и локальные ассеты из `data/packs.js`/`assets/` — сборка подставляет SVG вместо внешних CDN-картинок в `packs.json`;
-- интеграция с Yandex Games SDK: `LoadingAPI.ready()` и `GameplayAPI.start/stop()`;
-- `yandex-config.js` для указания backend URL, если игра загружена на домен Яндекс Игр.
-
-Собрать папку экспорта из актуальных паков и ассетов:
-
-```bash
-npm run build:yandex
-```
-
-Собрать и сразу подготовить `yandexport.zip` для загрузки в консоль Яндекс Игр:
-
-```bash
-npm run build:yandex:zip
-```
-
-Для локальной проверки запусти обычный сервер (`npm start`) и открой `http://localhost:3000/yandexport/index.html`.
-
-Для загрузки в Яндекс Игры нужен публичный HTTPS backend этого проекта. Укажи его в `yandexport/yandex-config.js`:
-
-```js
-window.SPY_APP_CONFIG = {
-  apiBase: "https://your-domain.example",
-  wsBase: "",
-};
-```
-
-Либо собери экспорт с переменной окружения:
-
-```bash
-YANDEX_BACKEND_URL=https://your-domain.example npm run build:yandex:zip
-```
-
-Сервер отдаёт CORS-заголовки для API, поэтому клиент с домена Яндекс Игр сможет обращаться к `/api/*` и `/ws`.
-
 ## Запуск на Windows
 
 1. Установи Node.js LTS: https://nodejs.org/
